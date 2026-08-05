@@ -1,15 +1,24 @@
 #include "sdgyrodsu/presenter.h"
 #include "sdgyrodsu/cemuhookadapter.h"
 
-#include <ncurses.h>
+#include <ncursesw/ncurses.h>
 
 using  namespace kmicki::cemuhook::protocol;
 
 namespace kmicki::sdgyrodsu
 {
-
-    void Presenter::Initialize()
+    namespace
     {
+        float cAcc1g = 16384.0f;
+        float cGyro1dps = 16.0f;
+        int cScanTimeUs = 4000;
+    }
+
+    void Presenter::Initialize(float acc1g, float gyro1dps, int scanTimeUs)
+    {
+        cAcc1g = acc1g;
+        cGyro1dps = gyro1dps;
+        cScanTimeUs = scanTimeUs;
         initscr();
         refresh();
     }
@@ -30,7 +39,7 @@ namespace kmicki::sdgyrodsu
 
         lastInc = frame.Increment;
 
-        CemuhookAdapter::SetMotionData(frame,md,lastAccelRtL,lastAccelFtB,lastAccelTtB);
+        CemuhookAdapter::SetMotionData(frame,md,lastAccelRtL,lastAccelFtB,lastAccelTtB,cAcc1g,cGyro1dps,cScanTimeUs);
 
         int k=0;
         move(++k,0); printw("INC  : %10d         ",frame.Increment);

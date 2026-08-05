@@ -83,6 +83,8 @@ namespace kmicki::hiddev
 
         void SetNoGyro(SignalOut& _noGyro);
 
+        void SetEnableGyro(bool enable);
+
         private:
 
         // Pipeline threads
@@ -132,6 +134,8 @@ namespace kmicki::hiddev
 
             void SetNoGyro(SignalOut& _noGyro);
 
+            void SetEnableGyro(bool enable);
+
             protected:
 
             void Execute() override;
@@ -143,6 +147,8 @@ namespace kmicki::hiddev
             int timeout;
 
             SignalOut *noGyro;
+
+            bool enableGyro;
         };
 
         class ProcessData : public Thread

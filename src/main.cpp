@@ -22,13 +22,7 @@ const bool cRunPresenter = false;
 const bool cUseHiddevFile = false;
 const bool cTestRun = false;
 
-const int cFrameLen = 64;       // Steam Deck Controls' custom HID report length in bytes
-const int cScanTimeUs = 4000;   // Steam Deck Controls' period between received report data in microseconds
-const uint16_t cVID = 0x28de;   // Steam Deck Controls' USB Vendor-ID
-const uint16_t cPID = 0x1205;   // Steam Deck Controls' USB Product-ID
-const int cInterfaceNumber = 2; // Steam Deck Controls' USB Interface Number
-
-const std::string cVersion = "2.1";   // Release version
+const std::string cVersion = "2.2";   // Release version
 
 bool stop = false;
 std::mutex stopMutex = std::mutex();
@@ -68,14 +62,14 @@ void SignalHandler(int signal)
     stopCV.notify_all();
 }
 
-void PresenterRun(HidDevReader * reader)
+void PresenterRun(HidDevReader * reader, kmicki::sdgyrodsu::DeviceProfile const& profile)
 {
     reader->Start();
     auto & frameServe = reader->GetServe();
     auto const& data = frameServe.GetPointer();
     int temp;
     void* tempPtr = reinterpret_cast<void*>(&temp);
-    Presenter::Initialize();
+    Presenter::Initialize(profile.acc1g, profile.gyro1dps, profile.scanTimeUs);
     while(true)
     {
         auto lock = frameServe.GetConsumeLock();
@@ -98,31 +92,42 @@ int main()
 
     { LogF() << "SteamDeckGyroDSU Version: " << cVersion; }
 
+    static const kmicki::sdgyrodsu::DeviceProfile cDeckProfile = { "Steam Deck", 0x28de, 0x1205, 2, 64, 4000, 16384.0f, 16.0f, true };
+    kmicki::sdgyrodsu::DeviceProfile const* profile = &cDeckProfile;
+
     std::unique_ptr<HidDevReader> readerPtr;
 
     if(cUseHiddevFile)
     {
+        const int cVID = 0x28de;
+        const int cPID = 0x1205;
         int hidno = FindHidDevNo(cVID,cPID);
-        if(hidno < 0) 
+        if(hidno < 0)
         {
             Log("Steam Deck Controls' HID device not found.");
             return 0;
         }
-
         { LogF() << "Found Steam Deck Controls' HID device at /dev/usb/hiddev" << hidno; }
-        
-        readerPtr.reset(new HidDevReader(hidno,cFrameLen,cScanTimeUs));
+        readerPtr.reset(new HidDevReader(hidno,profile->frameLen,profile->scanTimeUs));
     }
     else
     {
-        readerPtr.reset(new HidDevReader(cVID,cPID,cInterfaceNumber,cFrameLen,cScanTimeUs));
+        profile = FindDeviceProfile();
+        if(profile == nullptr)
+        {
+            Log("No compatible device found (Steam Deck / Legion Go S). Retrying on restart.");
+            return 0;
+        }
+        { LogF() << "Detected device: " << profile->name; }
+        readerPtr.reset(new HidDevReader(profile->vid, profile->pid, profile->interface, profile->frameLen, profile->scanTimeUs));
     }
 
     HidDevReader &reader = *readerPtr;
 
     reader.SetStartMarker({ 0x01, 0x00, 0x09, 0x40 }); // Beginning of every Steam Decks' HID frame
+    reader.SetEnableGyro(profile->needsGyroEnable);
 
-    CemuhookAdapter adapter(reader);
+    CemuhookAdapter adapter(reader, *profile);
     reader.SetNoGyro(adapter.NoGyro);
     Server server(adapter);
 
@@ -131,7 +136,7 @@ int main()
 
     std::unique_ptr<std::thread> presenter;
     if(cRunPresenter)
-        presenter.reset(new std::thread(PresenterRun,&reader));
+        presenter.reset(new std::thread(PresenterRun,&reader,*profile));
 
     if(cTestRun && !cRunPresenter)
         reader.Start();

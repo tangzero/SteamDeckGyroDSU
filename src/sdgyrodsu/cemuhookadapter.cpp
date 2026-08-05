@@ -8,12 +8,6 @@
 using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::log;
 
-#define SD_SCANTIME_US 4000
-#define ACC_1G 0x4000
-#define GYRO_1DEGPERSEC 16
-#define GYRO_DEADZONE 8
-#define ACCEL_SMOOTH 0x1FF
-
 namespace kmicki::sdgyrodsu
 {
 
@@ -21,15 +15,15 @@ namespace kmicki::sdgyrodsu
     {
         MotionData data;
 
-        SetMotionData(frame,data,lastAccelRtL,lastAccelFtB,lastAccelTtB);
+        SetMotionData(frame,data,lastAccelRtL,lastAccelFtB,lastAccelTtB,acc1g,gyro1dps,scanTimeUs);
 
         return data;
     }
     
-    float SmoothAccel(float &last, int16_t curr)
+    float SmoothAccel(float &last, int16_t curr, float acc1G)
     {
-        static const float acc1G = (float)ACC_1G;
-        if(abs(curr - last) < ACCEL_SMOOTH)
+        static const float cAccelSmoothPerUnit = 0x1FF / 16384.0f;
+        if(abs(curr - last) < cAccelSmoothPerUnit * acc1G)
         {
             last = ((float)last*0.95+(float)curr*0.05);
         }
@@ -48,29 +42,26 @@ namespace kmicki::sdgyrodsu
         return data;
     }
 
-    uint64_t ToTimestamp(uint32_t const& increment)
+    uint64_t ToTimestamp(uint32_t const& increment, int scanTimeUs)
     {
-        return (uint64_t)increment*SD_SCANTIME_US;
+        return (uint64_t)increment*scanTimeUs;
     }
 
-    MotionData &  SetTimestamp(MotionData &data, uint32_t const& increment)
+    MotionData & SetTimestamp(MotionData &data, uint32_t const& increment, int scanTimeUs)
     {
-        SetTimestamp(data,ToTimestamp(increment));
+        SetTimestamp(data, ToTimestamp(increment, scanTimeUs));
 
         return data;
     }
 
-    void CemuhookAdapter::SetMotionData(SdHidFrame const& frame, MotionData &data, float &lastAccelRtL, float &lastAccelFtB, float &lastAccelTtB)
+    void CemuhookAdapter::SetMotionData(SdHidFrame const& frame, MotionData &data, float &lastAccelRtL, float &lastAccelFtB, float &lastAccelTtB, float acc1g, float gyro1dps, int scanTimeUs)
     {
-        static const float acc1G = (float)ACC_1G;
-        static const float gyro1dps = (float)GYRO_1DEGPERSEC;
+        SetTimestamp(data, frame.Increment, scanTimeUs);
 
-        SetTimestamp(data, frame.Increment);
-        
-        data.accX = -SmoothAccel(lastAccelRtL,frame.AccelAxisRightToLeft);
-        data.accY = -SmoothAccel(lastAccelFtB,frame.AccelAxisFrontToBack);
-        data.accZ = SmoothAccel(lastAccelTtB,frame.AccelAxisTopToBottom);
-        if(frame.Header & 0xFF == 0xDD)
+        data.accX = -SmoothAccel(lastAccelRtL,frame.AccelAxisRightToLeft,acc1g);
+        data.accY = -SmoothAccel(lastAccelFtB,frame.AccelAxisFrontToBack,acc1g);
+        data.accZ = SmoothAccel(lastAccelTtB,frame.AccelAxisTopToBottom,acc1g);
+        if((frame.Header & 0xFF) == 0xDD)
         {
             data.pitch = 0.0f;
             data.yaw = 0.0f;
@@ -82,11 +73,11 @@ namespace kmicki::sdgyrodsu
             auto gyroFtB = frame.GyroAxisFrontToBack;
             auto gyroTtB = frame.GyroAxisTopToBottom;
 
-            if(gyroRtL < GYRO_DEADZONE && gyroRtL > -GYRO_DEADZONE)
+            if(gyroRtL < 8 && gyroRtL > -8)
                 gyroRtL = 0;
-            if(gyroFtB < GYRO_DEADZONE && gyroFtB > -GYRO_DEADZONE)
+            if(gyroFtB < 8 && gyroFtB > -8)
                 gyroFtB = 0;
-            if(gyroTtB < GYRO_DEADZONE && gyroTtB > -GYRO_DEADZONE)
+            if(gyroTtB < 8 && gyroTtB > -8)
                 gyroTtB = 0;
 
             data.pitch = (float)gyroRtL/gyro1dps;
@@ -95,11 +86,12 @@ namespace kmicki::sdgyrodsu
         }
     }
 
-    CemuhookAdapter::CemuhookAdapter(hiddev::HidDevReader & _reader, bool persistent)
+    CemuhookAdapter::CemuhookAdapter(hiddev::HidDevReader & _reader, DeviceProfile const& profile, bool persistent)
     : reader(_reader),
       lastInc(0),
       lastAccelRtL(0.0),lastAccelFtB(0.0),lastAccelTtB(0.0),
-      isPersistent(persistent), toReplicate(0), noGyroCooldown(0)
+      isPersistent(persistent), toReplicate(0), noGyroCooldown(0),
+      acc1g(profile.acc1g), gyro1dps(profile.gyro1dps), scanTimeUs(profile.scanTimeUs)
     {
         Log("CemuhookAdapter: Initialized. Waiting for start of frame grab.",LogLevelDebug);
     }
@@ -182,11 +174,11 @@ namespace kmicki::sdgyrodsu
                         }
                     }
 
-                    SetMotionData(frame,motion,lastAccelRtL,lastAccelFtB,lastAccelTtB);
+                    SetMotionData(frame,motion,lastAccelRtL,lastAccelFtB,lastAccelTtB,acc1g,gyro1dps,scanTimeUs);
 
                     if(toReplicate > 0)
                     {
-                        lastTimestamp = ToTimestamp(lastInc+1);
+                        lastTimestamp = ToTimestamp(lastInc+1, scanTimeUs);
                         SetTimestamp(motion,lastTimestamp);
                         if(!isPersistent)
                             data = motion;
@@ -201,7 +193,7 @@ namespace kmicki::sdgyrodsu
             {
                 // Replicated frame
                 --toReplicate;
-                lastTimestamp += SD_SCANTIME_US;
+                lastTimestamp += scanTimeUs;
                 if(!isPersistent)
                 {
                     motion = SetTimestamp(data,lastTimestamp);

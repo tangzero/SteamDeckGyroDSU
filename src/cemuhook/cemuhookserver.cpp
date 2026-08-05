@@ -120,6 +120,7 @@ namespace kmicki::cemuhook
         outHeader.magic[2] = 'U';
         outHeader.magic[3] = 'S';
         outHeader.version = 1001;
+        outHeader.eventType = VERSION_TYPE;
 
         versionAnswer.header = outHeader;
         versionAnswer.header.length = sizeof(versionAnswer.version) + 4;

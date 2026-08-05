@@ -36,21 +36,26 @@ namespace kmicki::hiddev
             Close();
 
         auto info = hid_enumerate(vId,pId);
+        auto devInfo = info;
 
-        while(info != nullptr)
+        while(devInfo != nullptr)
         {
-            if(info->interface_number == interfaceNumber)
+            if(devInfo->interface_number == interfaceNumber)
             {
-                dev = hid_open_path(info->path);
+                dev = hid_open_path(devInfo->path);
                 if(dev != nullptr)
                 {
                     hid_set_nonblocking(dev,0);
+                    hid_free_enumeration(info);
                     return true;
                 }
             }
 
-            info = info->next;
+            devInfo = devInfo->next;
         }
+
+        if(info != nullptr)
+            hid_free_enumeration(info);
 
         return false;
     }

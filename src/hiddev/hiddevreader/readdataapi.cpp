@@ -11,12 +11,17 @@ namespace kmicki::hiddev
 
     // Definition - ReadDataApi
     HidDevReader::ReadDataApi::ReadDataApi(uint16_t const& _vId, uint16_t const& _pId, const int& _interfaceNumber, int const& _frameLen, int const& _scanTimeUs)
-    : vId(_vId), pId(_pId), ReadData(_frameLen), timeout(cApiScanTimeToTimeout*_scanTimeUs/1000),interfaceNumber(_interfaceNumber),noGyro(nullptr)
+    : vId(_vId), pId(_pId), ReadData(_frameLen), timeout(cApiScanTimeToTimeout*_scanTimeUs/1000),interfaceNumber(_interfaceNumber),noGyro(nullptr),enableGyro(true)
     { }
 
     void HidDevReader::ReadDataApi::SetNoGyro(SignalOut &_noGyro)
     {
         noGyro = &_noGyro;
+    }
+
+    void HidDevReader::ReadDataApi::SetEnableGyro(bool enable)
+    {
+        enableGyro = enable;
     }
  
     void HidDevReader::ReadDataApi::Execute()
@@ -39,6 +44,12 @@ namespace kmicki::hiddev
             if(noGyro && noGyro->TrySignal())
             {
                 Log("HidDevReader::ReadDataApi: Try reenabling gyro.",LogLevelTrace);
+                // enableGyro is set once before Start(); a later toggle would race with the Execute thread.
+                if(!enableGyro)
+                {
+                    Log("HidDevReader::ReadDataApi: Gyro enable skipped (device streams natively).",LogLevelTrace);
+                    continue;
+                }
                 if(dev.EnableGyro())
                     Log("HidDevReader::ReadDataApi: Gyro reenabled.",LogLevelDebug);
                 else

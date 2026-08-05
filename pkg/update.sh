@@ -1,7 +1,7 @@
 #!/bin/sh
 
 echo "Grabbing latest release..."
-if curl -L -O -s https://github.com/kmicki/SteamDeckGyroDSU/releases/latest/download/SteamDeckGyroDSUSetup.zip >/dev/null; then
+if curl -L -O -s https://github.com/tangzero/SteamDeckGyroDSU/releases/latest/download/SteamDeckGyroDSUSetup.zip >/dev/null; then
 	echo "Latest release downloaded."
 else
 	echo -e "\e[1mFailed to grab latest .zip file...\e[0m"

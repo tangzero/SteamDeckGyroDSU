@@ -62,7 +62,7 @@ ADDRELEASEPARS = -O3
 # 		Additional parameters for debug build
 ADDDEBUGPARS = -g
 # 		Additional libraries parameters
-ADDLIBS = -pthread -lncurses -lsystemd -lhidapi-hidraw
+ADDLIBS = -pthread -lncursesw -lsystemd -lhidapi-hidraw
 
 #	Install
 

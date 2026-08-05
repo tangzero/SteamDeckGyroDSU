@@ -6,6 +6,7 @@
 #include "hiddev/hiddevreader.h"
 #include "pipeline/serve.h"
 #include "pipeline/signalout.h"
+#include "sdgyrodsu/deviceprofile.h"
 
 namespace kmicki::sdgyrodsu
 {
@@ -14,7 +15,7 @@ namespace kmicki::sdgyrodsu
         public:
         CemuhookAdapter() = delete;
 
-        CemuhookAdapter(hiddev::HidDevReader & _reader, bool persistent = true);
+        CemuhookAdapter(hiddev::HidDevReader & _reader, DeviceProfile const& profile, bool persistent = true);
 
         void StartFrameGrab();
 
@@ -27,7 +28,7 @@ namespace kmicki::sdgyrodsu
         bool IsControllerConnected();
 
         cemuhook::protocol::MotionData GetMotionData(SdHidFrame const& frame, float &lastAccelRtL, float &lastAccelFtB, float &lastAccelTtB);
-        static void SetMotionData(SdHidFrame const& frame, cemuhook::protocol::MotionData &data, float &lastAccelRtL, float &lastAccelFtB, float &lastAccelTtB);
+        static void SetMotionData(SdHidFrame const& frame, cemuhook::protocol::MotionData &data, float &lastAccelRtL, float &lastAccelFtB, float &lastAccelTtB, float acc1g, float gyro1dps, int scanTimeUs);
 
         SignalOut NoGyro;
 
@@ -47,6 +48,10 @@ namespace kmicki::sdgyrodsu
 
         int toReplicate;
         int noGyroCooldown;
+
+        float acc1g;
+        float gyro1dps;
+        int scanTimeUs;
 
         pipeline::Serve<hiddev::HidDevReader::frame_t> * frameServe;
     };

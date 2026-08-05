@@ -170,4 +170,10 @@ namespace kmicki::hiddev
         if(readDataApi)
             readDataApi->SetNoGyro(_noGyro);
     }
+
+    void HidDevReader::SetEnableGyro(bool enable)
+    {
+        if(readDataApi)
+            readDataApi->SetEnableGyro(enable);
+    }
 }
